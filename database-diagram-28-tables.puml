@@ -1,0 +1,524 @@
+@startuml STS-DAMS-28表关系模式图
+' ============================================================
+' STS-DAMS 全部28张表关系模式图 (SSMS Database Diagram风格)
+' 生成方式: PlantUML (https://plantuml.com)
+' 在线渲染: https://www.plantuml.com/plantuml/uml/
+' 本地渲染: java -jar plantuml.jar database-diagram-28-tables.puml
+' ============================================================
+
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName Microsoft YaHei
+skinparam defaultFontSize 10
+skinparam dpi 300
+
+' ---- 全局样式 ----
+skinparam entity {
+  BorderColor #333333
+  BackgroundColor #FEFEFE
+  FontSize 10
+}
+
+skinparam legendBackgroundColor #FAFAFA
+skinparam legendBorderColor #CCCCCC
+
+' ---- 图例 ----
+legend right
+  **图例**
+  | <b>粗体</b> | 主键 (PK) |
+  | <i>斜体</i> | 外键 (FK) |
+  | <color:red>红色边框</color> | 事件溯源表 (仅INSERT) |
+  | --- | --- |
+  | 模块颜色 | |
+  | <back:#E3F2FD>蓝</back> | 模块一: 用户与DM |
+  | <back:#E8F5E9>绿</back> | 模块二: 剧本与资产 |
+  | <back:#FFF3E0>橙</back> | 模块三: 调度与订单 |
+  | <back:#FCE4EC>粉</back> | 模块四: 库存与消费 |
+  | <back:#F3E5F5>紫</back> | 模块五: 审计与快照 |
+  | <back:#FFF9C4>黄</back> | 模块六: 会员积分 |
+  | <back:#E0F2F1>青</back> | 模块七: 优惠券 |
+  | <back:#FFE0B2>棕</back> | 模块八: 服务评价 |
+  | <back:#E8EAF6>靛</back> | 模块九: 消息通知 |
+  | <back:#ECEFF1>灰</back> | 模块零/十: 查找表/门店 |
+endlegend
+
+' ============================================================
+' 模块零：基础查找表 (2 tables) — 灰色区域
+' ============================================================
+
+entity "Dim_Role_Lookup\n(角色查找表)" as Dim_Role_Lookup #ECEFF1 {
+  + **Role_ID** : TINYINT <<PK>> <<IDENTITY>>
+  --
+  Role_Name : NVARCHAR(30) <<UNIQUE>>
+}
+
+entity "Dim_Genre_Lookup\n(题材查找表)" as Dim_Genre_Lookup #ECEFF1 {
+  + **Genre_ID** : TINYINT <<PK>> <<IDENTITY>>
+  --
+  Genre_Name : NVARCHAR(30) <<UNIQUE>>
+}
+
+' ============================================================
+' 模块一：用户与人员资质 (4 tables) — 蓝色区域
+' ============================================================
+
+entity "Account_Base_Table\n(用户核心账户表)" as Account_Base_Table #E3F2FD {
+  + **User_ID** : INT <<PK>> <<IDENTITY>>
+  --
+  Account_Name : NVARCHAR(50) <<UNIQUE>>
+  Password_Hash : VARBINARY(256)
+  Contact_Phone : NVARCHAR(20)
+  <i>Role_Type</i> : TINYINT <<FK>>
+  Account_Status : NVARCHAR(20) <<CHECK>>
+  Account_Created_At : DATETIME2(3) <<DEFAULT SYSUTCDATETIME>>
+  Last_Login_At : DATETIME2(3)
+  Is_Deleted : BIT <<DEFAULT 0>>
+  Deleted_At : DATETIME2(3)
+  Row_Version : ROWVERSION
+}
+
+entity "DM_Profile_Table\n(DM资质明细表)" as DM_Profile_Table #E3F2FD {
+  + **<i>DM_User_ID</i>** : INT <<PK>> <<FK>>
+  --
+  DM_Stage_Name : NVARCHAR(50) <<UNIQUE>>
+  Base_Per_Session_Wage : DECIMAL(10,2) <<CHECK ≥0>>
+  Employment_Status : NVARCHAR(20) <<CHECK>>
+  Hire_Date : DATE
+  Avatar_Image_URL : NVARCHAR(500)
+}
+
+entity "DM_Script_Capability_Table\n(DM剧本带场能力表)" as DM_Script_Capability_Table #E3F2FD {
+  + **Capability_ID** : BIGINT <<PK>> <<IDENTITY>>
+  --
+  <i>DM_User_ID</i> : INT <<FK>>
+  <i>Script_ID</i> : INT <<FK>>
+  Proficiency_Level : NVARCHAR(20) <<CHECK>>
+  Certified_At : DATETIME2(3) <<DEFAULT SYSUTCDATETIME>>
+  ==
+  <<UNIQUE>> (DM_User_ID, Script_ID)
+}
+
+entity "DM_Shift_Availability_Table\n(DM排班可用时段表)" as DM_Shift_Availability_Table #E3F2FD {
+  + **Shift_ID** : BIGINT <<PK>> <<IDENTITY>>
+  --
+  <i>DM_User_ID</i> : INT <<FK>>
+  Available_Start : DATETIME2(3)
+  Available_End : DATETIME2(3)
+  Shift_Type : NVARCHAR(20) <<CHECK>>
+  <i>Script_ID</i> : INT <<FK>> <<NULL>>
+  Created_At : DATETIME2(3) <<DEFAULT SYSUTCDATETIME>>
+  ==
+  <<CHECK>> Available_End > Available_Start
+}
+
+' ============================================================
+' 模块二：剧本与门店资产 (4 tables) — 绿色区域
+' ============================================================
+
+entity "Dim_Script_Dictionary\n(剧本内容字典表)" as Dim_Script_Dictionary #E8F5E9 {
+  + **Script_ID** : INT <<PK>> <<IDENTITY>>
+  --
+  Script_Title : NVARCHAR(100) <<UNIQUE>>
+  Min_Required_Players : INT <<CHECK ≥2>>
+  Max_Allowed_Players : INT
+  Estimated_Duration : INT <<CHECK >0>>
+  Base_Price : DECIMAL(10,2) <<CHECK ≥0>>
+  <i>Primary_Genre</i> : TINYINT <<FK>>
+  Is_Retired : BIT <<DEFAULT 0>>
+  Cover_Image_URL : NVARCHAR(500)
+  ==
+  <<CHECK>> Max_Allowed_Players >= Min_Required_Players
+}
+
+entity "Script_Role_Definition_Table\n(剧本角色定义表)" as Script_Role_Definition_Table #E8F5E9 {
+  + **Role_ID** : INT <<PK>> <<IDENTITY>>
+  --
+  <i>Script_ID</i> : INT <<FK>>
+  Role_Name : NVARCHAR(50)
+  Gender_Restriction : NVARCHAR(10) <<CHECK>>
+  Role_Description : NVARCHAR(500)
+  ==
+  <<UNIQUE>> (Script_ID, Role_Name)
+}
+
+entity "Asset_Script_Copy_Table\n(剧本实体副本资产表)" as Asset_Script_Copy_Table #E8F5E9 {
+  + **Copy_ID** : BIGINT <<PK>> <<IDENTITY>>
+  --
+  Copy_Asset_Barcode : NVARCHAR(50) <<UNIQUE>>
+  <i>Script_ID</i> : INT <<FK>>
+  Authorization_Type : NVARCHAR(30) <<CHECK>>
+  Asset_Condition : NVARCHAR(20) <<CHECK>>
+  Purchase_Date : DATE
+  Current_Storage_Location : NVARCHAR(100)
+}
+
+entity "Dim_Store_Room\n(门店物理房间表)" as Dim_Store_Room #E8F5E9 {
+  + **Room_ID** : INT <<PK>> <<IDENTITY>>
+  --
+  Room_Name : NVARCHAR(50) <<UNIQUE>>
+  Room_Max_Capacity : INT <<CHECK ≥3>>
+  Room_Theme : NVARCHAR(50)
+  Room_Operating_Status : NVARCHAR(20) <<CHECK>>
+}
+
+' ============================================================
+' 模块三：时空调度与订单 (3 tables) — 橙色区域
+' ============================================================
+
+entity "Fact_Session_Schedule\n(时空调度场次主表)" as Fact_Session_Schedule #FFF3E0 {
+  + **Session_ID** : BIGINT <<PK>> <<IDENTITY>>
+  --
+  Store_ID : INT <<DEFAULT 1>>
+  <i>Copy_ID</i> : BIGINT <<FK>>
+  <i>Room_ID</i> : INT <<FK>>
+  <i>DM_User_ID</i> : INT <<FK>>
+  Scheduled_Start_Time : DATETIME2(3)
+  Scheduled_End_Time : DATETIME2(3)
+  Session_Status : NVARCHAR(20) <<CHECK>>
+  Frozen_Per_Head_Price : DECIMAL(10,2)
+  <i>Created_By_User_ID</i> : INT <<FK>>
+  Created_At : DATETIME2(3) <<DEFAULT SYSUTCDATETIME>>
+  Row_Version : ROWVERSION
+  ==
+  <<CHECK>> Scheduled_End_Time > Scheduled_Start_Time
+}
+
+entity "Bridge_Player_Registration\n(玩家参团登记表)" as Bridge_Player_Registration #FFF3E0 {
+  + **Registration_ID** : BIGINT <<PK>> <<IDENTITY>>
+  --
+  <i>Session_ID</i> : BIGINT <<FK>>
+  <i>Player_User_ID</i> : INT <<FK>>
+  <i>Role_ID</i> : INT <<FK>> <<NULL>>
+  Joined_At : DATETIME2(3) <<DEFAULT SYSUTCDATETIME>>
+  Cached_Payment_Status : NVARCHAR(20) <<CHECK>>
+  ==
+  <<UNIQUE>> (Session_ID, Player_User_ID)
+}
+
+entity "Payment_Transaction_Table\n(支付流水交易表) 🔒" as Payment_Transaction_Table #FFF3E0 #FFCDD2 {
+  + **Transaction_ID** : BIGINT <<PK>> <<IDENTITY>>
+  --
+  Store_ID : INT <<DEFAULT 1>>
+  <i>Registration_ID</i> : BIGINT <<FK>>
+  Transaction_Type : NVARCHAR(20) <<CHECK>>
+  Amount : DECIMAL(10,2)
+  Payment_Method : NVARCHAR(30) <<CHECK>>
+  External_Reference_No : NVARCHAR(100)
+  Processed_At : DATETIME2(3) <<DEFAULT SYSUTCDATETIME>>
+  <i>Operator_User_ID</i> : INT <<FK>>
+  Remarks : NVARCHAR(200)
+  ==
+  <<CHECK>> Amount符号约束 (Deposit/Final>0, Refund<0)
+  <<DENY UPDATE, DELETE TO PUBLIC>>
+}
+
+' ============================================================
+' 模块四：库存与消费记账 (3 tables) — 粉色区域
+' ============================================================
+
+entity "Dim_Inventory_Item\n(门店物资商品库存主表)" as Dim_Inventory_Item #FCE4EC {
+  + **Item_ID** : INT <<PK>> <<IDENTITY>>
+  --
+  Item_Name : NVARCHAR(100) <<UNIQUE>>
+  Current_Stock_Cache : INT <<CHECK ≥0>>
+  Cost_Unit_Price : DECIMAL(10,2) <<CHECK ≥0>>
+  Selling_Unit_Price : DECIMAL(10,2)
+  Item_Category : NVARCHAR(30)
+  Safety_Alert_Threshold : INT <<DEFAULT 10>>
+  Is_Delisted : BIT <<DEFAULT 0>>
+  ==
+  <<CHECK>> Selling_Unit_Price >= Cost_Unit_Price
+}
+
+entity "Inventory_Movement_Ledger\n(物资库存流水台账表) 🔒" as Inventory_Movement_Ledger #FCE4EC #FFCDD2 {
+  + **Movement_ID** : BIGINT <<PK>> <<IDENTITY>>
+  --
+  Store_ID : INT <<DEFAULT 1>>
+  <i>Item_ID</i> : INT <<FK>>
+  Quantity_Delta : INT <<CHECK ≠0>>
+  Movement_Type : NVARCHAR(30) <<CHECK>>
+  <i>Related_Session_ID</i> : BIGINT <<FK>> <<NULL>>
+  <i>Related_Consumption_ID</i> : BIGINT <<FK>> <<NULL>>
+  <i>Operator_User_ID</i> : INT <<FK>>
+  Movement_Reason : NVARCHAR(200)
+  Movement_At : DATETIME2(3) <<DEFAULT SYSUTCDATETIME>>
+  ==
+  <<DENY UPDATE, DELETE TO PUBLIC>>
+}
+
+entity "Fact_Session_Consumption\n(场次附加消费流水表) 🔒" as Fact_Session_Consumption #FCE4EC #FFCDD2 {
+  + **Consumption_ID** : BIGINT <<PK>> <<IDENTITY>>
+  --
+  Store_ID : INT <<DEFAULT 1>>
+  <i>Session_ID</i> : BIGINT <<FK>>
+  <i>Item_ID</i> : INT <<FK>>
+  Consumed_Quantity : INT <<CHECK >0>>
+  Unit_Price_At_Sale : DECIMAL(10,2)
+  Line_Total_Cost : DECIMAL(10,2)
+  <i>Recording_DM_User_ID</i> : INT <<FK>>
+  Recorded_At : DATETIME2(3) <<DEFAULT SYSUTCDATETIME>>
+  ==
+  <<DENY UPDATE, DELETE TO PUBLIC>>
+}
+
+' ============================================================
+' 模块五：审计与快照 (3 tables) — 紫色区域
+' ============================================================
+
+entity "System_Audit_Log_Table\n(系统操作审计日志表) 🔒" as System_Audit_Log_Table #F3E5F5 #FFCDD2 {
+  + **Audit_ID** : BIGINT <<PK>> <<IDENTITY>>
+  --
+  Store_ID : INT <<DEFAULT 1>>
+  <i>Operator_User_ID</i> : INT <<FK>>
+  Action_Type : NVARCHAR(50)
+  Target_Entity : NVARCHAR(50)
+  Target_Record_ID : NVARCHAR(50)
+  Action_Details : NVARCHAR(MAX)
+  Client_IP : VARCHAR(45)
+  Logged_At : DATETIME2(3) <<DEFAULT SYSUTCDATETIME>>
+  ==
+  <<DENY UPDATE, DELETE TO PUBLIC>>
+}
+
+entity "Daily_KPI_Snapshot\n(每日经营快照表)" as Daily_KPI_Snapshot #F3E5F5 {
+  + **Snapshot_ID** : BIGINT <<PK>> <<IDENTITY>>
+  --
+  Store_ID : INT <<DEFAULT 1>>
+  Snapshot_Date : DATE
+  Total_Sessions : INT <<DEFAULT 0>>
+  Completed_Sessions : INT <<DEFAULT 0>>
+  Aborted_Sessions : INT <<DEFAULT 0>>
+  Total_Revenue_Script : DECIMAL(15,2) <<DEFAULT 0>>
+  Total_Revenue_Consumption : DECIMAL(15,2) <<DEFAULT 0>>
+  Total_Refund : DECIMAL(15,2) <<DEFAULT 0>>
+  Active_Players : INT <<DEFAULT 0>>
+  New_Registrations : INT <<DEFAULT 0>>
+  Created_At : DATETIME2(3) <<DEFAULT SYSUTCDATETIME>>
+  ==
+  <<UNIQUE>> (Store_ID, Snapshot_Date)
+}
+
+entity "Daily_User_LTV_Snapshot\n(用户LTV快照表)" as Daily_User_LTV_Snapshot #F3E5F5 {
+  + **Snapshot_ID** : BIGINT <<PK>> <<IDENTITY>>
+  --
+  <i>User_ID</i> : INT <<FK>>
+  Snapshot_Date : DATE
+  Lifetime_Days : INT <<DEFAULT 0>>
+  Total_Sessions_Attended : INT <<DEFAULT 0>>
+  Total_Spent_Script : DECIMAL(15,2) <<DEFAULT 0>>
+  Total_Spent_Consumption : DECIMAL(15,2) <<DEFAULT 0>>
+  Avg_Per_Session_Spend : DECIMAL(10,2) <<DEFAULT 0>>
+  Days_Since_Last_Session : INT <<NULL>>
+  ==
+  <<UNIQUE>> (User_ID, Snapshot_Date)
+}
+
+' ============================================================
+' 模块六：会员积分 (3 tables) — 黄色区域
+' ============================================================
+
+entity "Dim_Member_Level\n(会员等级查找表)" as Dim_Member_Level #FFF9C4 {
+  + **Level_ID** : TINYINT <<PK>> <<IDENTITY>>
+  --
+  Level_Name : NVARCHAR(30) <<UNIQUE>>
+  Min_Required_Points : INT <<CHECK ≥0>>
+  Discount_Rate : DECIMAL(4,3) <<CHECK 0<rate≤1>>
+  Point_Earning_Multiplier : DECIMAL(3,2) <<DEFAULT 1.00>> <<CHECK ≥1.00>>
+}
+
+entity "User_Member_Profile\n(用户会员档案表)" as User_Member_Profile #FFF9C4 {
+  + **<i>User_ID</i>** : INT <<PK>> <<FK>>
+  --
+  Accumulated_Points : INT <<CHECK ≥0>> <<DEFAULT 0>>
+  <i>Current_Level_ID</i> : TINYINT <<FK>> <<DEFAULT 1>>
+  Total_Lifetime_Points : INT <<CHECK ≥0>> <<DEFAULT 0>>
+  Level_Upgraded_At : DATETIME2(3) <<NULL>>
+}
+
+entity "Member_Points_Ledger\n(积分流水台账表)" as Member_Points_Ledger #FFF9C4 {
+  + **Ledger_ID** : BIGINT <<PK>> <<IDENTITY>>
+  --
+  <i>User_ID</i> : INT <<FK>>
+  Points_Delta : INT <<CHECK ≠0>>
+  Transaction_Type : NVARCHAR(30) <<CHECK 7种>>
+  <i>Related_Session_ID</i> : BIGINT <<FK>> <<NULL>>
+  <i>Related_Registration_ID</i> : BIGINT <<FK>> <<NULL>>
+  Points_Balance_After : INT <<CHECK ≥0>>
+  <i>Operator_User_ID</i> : INT <<FK>>
+  Remarks : NVARCHAR(200)
+  Created_At : DATETIME2(3) <<DEFAULT SYSUTCDATETIME>>
+}
+
+' ============================================================
+' 模块七：优惠券 (3 tables) — 青色区域
+' ============================================================
+
+entity "Coupon_Template\n(优惠券模板表)" as Coupon_Template #E0F2F1 {
+  + **Template_ID** : INT <<PK>> <<IDENTITY>>
+  --
+  Coupon_Name : NVARCHAR(100)
+  Discount_Type : NVARCHAR(20) <<CHECK>>
+  Discount_Value : DECIMAL(10,2) <<CHECK >0>>
+  Min_Order_Amount : DECIMAL(10,2) <<CHECK ≥0>> <<DEFAULT 0>>
+  Max_Discount_Cap : DECIMAL(10,2) <<NULL>>
+  Valid_Days_From_Issue : INT <<CHECK >0>>
+  <i>Applicable_Script_ID</i> : INT <<FK>> <<NULL>>
+  Total_Issuance_Limit : INT <<NULL>>
+  Per_User_Limit : INT <<CHECK >0>> <<DEFAULT 1>>
+  Is_Active : BIT <<DEFAULT 1>>
+  <i>Created_By_User_ID</i> : INT <<FK>>
+  Created_At : DATETIME2(3) <<DEFAULT SYSUTCDATETIME>>
+}
+
+entity "User_Coupon_Instance\n(用户优惠券实例表)" as User_Coupon_Instance #E0F2F1 {
+  + **Coupon_ID** : BIGINT <<PK>> <<IDENTITY>>
+  --
+  <i>Template_ID</i> : INT <<FK>>
+  <i>User_ID</i> : INT <<FK>>
+  Coupon_Status : NVARCHAR(20) <<CHECK>>
+  Issued_At : DATETIME2(3) <<DEFAULT SYSUTCDATETIME>>
+  Expires_At : DATETIME2(3)
+  Used_At : DATETIME2(3) <<NULL>>
+  <i>Issued_By_User_ID</i> : INT <<FK>>
+  Verification_Code : CHAR(4) <<UNIQUE>>
+}
+
+entity "Discount_Usage_Log\n(优惠券核销记录表)" as Discount_Usage_Log #E0F2F1 {
+  + **Usage_ID** : BIGINT <<PK>> <<IDENTITY>>
+  --
+  <i>Coupon_ID</i> : BIGINT <<FK>>
+  <i>Transaction_ID</i> : BIGINT <<FK>>
+  Discount_Amount : DECIMAL(10,2) <<CHECK ≥0>>
+  Recorded_At : DATETIME2(3) <<DEFAULT SYSUTCDATETIME>>
+}
+
+' ============================================================
+' 模块八：服务评价 (1 table) — 棕色区域
+' ============================================================
+
+entity "Fact_Session_Review\n(场次服务评价表)" as Fact_Session_Review #FFE0B2 {
+  + **Review_ID** : BIGINT <<PK>> <<IDENTITY>>
+  --
+  <i>Session_ID</i> : BIGINT <<FK>>
+  <i>Reviewer_User_ID</i> : INT <<FK>>
+  <i>Registration_ID</i> : BIGINT <<FK>>
+  DM_Rating : TINYINT <<CHECK 1-5>>
+  Script_Rating : TINYINT <<CHECK 1-5>>
+  Room_Rating : TINYINT <<CHECK 1-5>>
+  Overall_Rating : TINYINT <<CHECK 1-5>>
+  Review_Comment : NVARCHAR(500)
+  Tags : NVARCHAR(200)
+  Is_Anonymous : BIT <<DEFAULT 0>>
+  Created_At : DATETIME2(3) <<DEFAULT SYSUTCDATETIME>>
+  ==
+  <<UNIQUE>> (Session_ID, Reviewer_User_ID)
+}
+
+' ============================================================
+' 模块九：消息通知 (1 table) — 靛色区域
+' ============================================================
+
+entity "User_Notification\n(用户通知表)" as User_Notification #E8EAF6 {
+  + **Notification_ID** : BIGINT <<PK>> <<IDENTITY>>
+  --
+  <i>Recipient_User_ID</i> : INT <<FK>>
+  Notification_Type : NVARCHAR(30) <<CHECK 7种>>
+  Title : NVARCHAR(200)
+  Content : NVARCHAR(MAX)
+  Related_Entity_Type : NVARCHAR(50) <<NULL>>
+  Related_Entity_ID : NVARCHAR(50) <<NULL>>
+  Is_Read : BIT <<DEFAULT 0>>
+  Read_At : DATETIME2(3) <<NULL>>
+  Is_Pushed : BIT <<DEFAULT 0>>
+  Created_At : DATETIME2(3) <<DEFAULT SYSUTCDATETIME>>
+}
+
+' ============================================================
+' 模块十：门店配置 (1 table) — 灰色区域
+' ============================================================
+
+entity "Dim_Store_Info\n(门店信息配置表)" as Dim_Store_Info #ECEFF1 {
+  + **Store_ID** : INT <<PK>> <<DEFAULT 1>>
+  --
+  Store_Name : NVARCHAR(100)
+  Store_Address : NVARCHAR(200) <<NULL>>
+  Contact_Phone : NVARCHAR(30) <<NULL>>
+  Contact_Email : NVARCHAR(100) <<NULL>>
+  Business_Hours : NVARCHAR(200) <<NULL>>
+  Created_At : DATETIME2(3) <<DEFAULT SYSUTCDATETIME>>
+  Updated_At : DATETIME2(3) <<NULL>>
+}
+
+' ============================================================
+'                    外键关系 (FK Constraints)
+' ============================================================
+
+' --- 模块一内部关系 ---
+Account_Base_Table ||--o{ DM_Profile_Table : "FK_DM_Profile_User\n(DM_User_ID → User_ID)"
+Account_Base_Table ||--o{ DM_Shift_Availability_Table : "FK_Shift_DM_User\n(DM_User_ID → User_ID)"
+DM_Profile_Table ||--o{ DM_Script_Capability_Table : "FK_Capability_DM\n(DM_User_ID → DM_User_ID)"
+DM_Profile_Table ||--o{ DM_Shift_Availability_Table : "FK_Shift_DM\n(DM_User_ID → DM_User_ID)"
+
+' --- 模块一到模块零 ---
+Account_Base_Table }o--|| Dim_Role_Lookup : "FK_Account_Role\n(Role_Type → Role_ID)"
+
+' --- 模块二内部关系 ---
+Dim_Script_Dictionary ||--o{ Script_Role_Definition_Table : "FK_Role_Script\n(Script_ID → Script_ID)"
+Dim_Script_Dictionary ||--o{ Asset_Script_Copy_Table : "FK_Copy_Script\n(Script_ID → Script_ID)"
+
+' --- 模块二到模块零 ---
+Dim_Script_Dictionary }o--|| Dim_Genre_Lookup : "FK_Script_Genre\n(Primary_Genre → Genre_ID)"
+
+' --- 模块三到模块一/二 ---
+Fact_Session_Schedule }o--|| Asset_Script_Copy_Table : "FK_Session_Copy\n(Copy_ID → Copy_ID)"
+Fact_Session_Schedule }o--|| Dim_Store_Room : "FK_Session_Room\n(Room_ID → Room_ID)"
+Fact_Session_Schedule }o--|| DM_Profile_Table : "FK_Session_DM\n(DM_User_ID → DM_User_ID)"
+Fact_Session_Schedule }o--|| Account_Base_Table : "FK_Session_CreatedBy\n(Created_By_User_ID → User_ID)"
+Bridge_Player_Registration }o--|| Fact_Session_Schedule : "FK_Reg_Session\n(Session_ID → Session_ID)"
+Bridge_Player_Registration }o--|| Account_Base_Table : "FK_Reg_Player\n(Player_User_ID → User_ID)"
+Bridge_Player_Registration }o--o| Script_Role_Definition_Table : "FK_Reg_Role\n(Role_ID → Role_ID)"
+Payment_Transaction_Table }o--|| Bridge_Player_Registration : "FK_Payment_Reg\n(Registration_ID → Registration_ID)"
+Payment_Transaction_Table }o--|| Account_Base_Table : "FK_Payment_Operator\n(Operator_User_ID → User_ID)"
+
+' --- 模块四到模块一/三 ---
+Inventory_Movement_Ledger }o--|| Dim_Inventory_Item : "FK_Ledger_Item\n(Item_ID → Item_ID)"
+Inventory_Movement_Ledger }o--o| Fact_Session_Schedule : "FK_Ledger_Session\n(Related_Session_ID → Session_ID)"
+Inventory_Movement_Ledger }o--o| Fact_Session_Consumption : "FK_Inventory_Ledger_Consumption\n(Related_Consumption_ID → Consumption_ID)"
+Inventory_Movement_Ledger }o--|| Account_Base_Table : "FK_Ledger_Operator\n(Operator_User_ID → User_ID)"
+Fact_Session_Consumption }o--|| Fact_Session_Schedule : "FK_Consumption_Session\n(Session_ID → Session_ID)"
+Fact_Session_Consumption }o--|| Dim_Inventory_Item : "FK_Consumption_Item\n(Item_ID → Item_ID)"
+Fact_Session_Consumption }o--|| Account_Base_Table : "FK_Consumption_DM\n(Recording_DM_User_ID → User_ID)"
+
+' --- 模块五到模块一 ---
+System_Audit_Log_Table }o--|| Account_Base_Table : "FK_Audit_Operator\n(Operator_User_ID → User_ID)"
+Daily_User_LTV_Snapshot }o--|| Account_Base_Table : "FK_LTV_User\n(User_ID → User_ID)"
+
+' --- 模块六到模块一/三 ---
+User_Member_Profile ||--|| Account_Base_Table : "FK_Member_User\n(User_ID → User_ID)"
+User_Member_Profile }o--|| Dim_Member_Level : "FK_Member_Level\n(Current_Level_ID → Level_ID)"
+Member_Points_Ledger }o--|| Account_Base_Table : "FK_Points_User\n(User_ID → User_ID)"
+Member_Points_Ledger }o--o| Fact_Session_Schedule : "FK_Points_Session\n(Related_Session_ID → Session_ID)"
+Member_Points_Ledger }o--o| Bridge_Player_Registration : "FK_Points_Registration\n(Related_Registration_ID → Registration_ID)"
+Member_Points_Ledger }o--|| Account_Base_Table : "FK_Points_Operator\n(Operator_User_ID → User_ID)"
+
+' --- 模块七到模块一/二/三 ---
+Coupon_Template }o--|| Account_Base_Table : "FK_CouponTmpl_CreatedBy\n(Created_By_User_ID → User_ID)"
+Coupon_Template }o--o| Dim_Script_Dictionary : "FK_CouponTmpl_Script\n(Applicable_Script_ID → Script_ID)"
+User_Coupon_Instance }o--|| Coupon_Template : "FK_CouponInst_Template\n(Template_ID → Template_ID)"
+User_Coupon_Instance }o--|| Account_Base_Table : "FK_CouponInst_User\n(User_ID → User_ID)"
+User_Coupon_Instance }o--|| Account_Base_Table : "FK_CouponInst_IssuedBy\n(Issued_By_User_ID → User_ID)"
+Discount_Usage_Log }o--|| User_Coupon_Instance : "FK_Discount_Coupon\n(Coupon_ID → Coupon_ID)"
+Discount_Usage_Log }o--|| Payment_Transaction_Table : "FK_Discount_Payment\n(Transaction_ID → Transaction_ID)"
+
+' --- 模块八到模块一/三 ---
+Fact_Session_Review }o--|| Fact_Session_Schedule : "FK_Review_Session\n(Session_ID → Session_ID)"
+Fact_Session_Review }o--|| Account_Base_Table : "FK_Review_Reviewer\n(Reviewer_User_ID → User_ID)"
+Fact_Session_Review }o--|| Bridge_Player_Registration : "FK_Review_Registration\n(Registration_ID → Registration_ID)"
+
+' --- 模块九到模块一 ---
+User_Notification }o--|| Account_Base_Table : "FK_Notification_Recipient\n(Recipient_User_ID → User_ID)"
+
+' --- 模块一到模块一 (DM 排班与剧本) ---
+DM_Shift_Availability_Table }o--o| Dim_Script_Dictionary : "FK_Shift_Script\n(Script_ID → Script_ID)"
+DM_Script_Capability_Table }o--|| Dim_Script_Dictionary : "FK_Capability_Script\n(Script_ID → Script_ID)"
+
+@enduml

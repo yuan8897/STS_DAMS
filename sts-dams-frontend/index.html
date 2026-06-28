@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>STS-DAMS 剧本杀时空调度系统</title>
+  </head>
+  <body class="bg-base-light text-gray-900">
+    <div id="root"></div>
+    <script>
+      // 检测后端是否在线，在线则清除旧 mock 会话（保留真实 JWT）
+      (function() {
+        var auth = localStorage.getItem('sts_dams_auth');
+        if (!auth) return;
+        try {
+          var user = JSON.parse(auth);
+          // 仅清除 mock token，保留真实 JWT token
+          if (user.token && user.token.startsWith('mock-')) {
+            var xhr = new XMLHttpRequest();
+            xhr.open('HEAD', '/api/health', false); // 同步请求，阻塞至返回
+            try { xhr.send(); } catch(e) { return; }
+            if (xhr.status === 200) {
+              localStorage.removeItem('sts_dams_auth');
+              console.log('[STS-DAMS] 后端在线，已清除旧 mock 会话，请重新登录。');
+            }
+          }
+        } catch(e) {}
+      })();
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

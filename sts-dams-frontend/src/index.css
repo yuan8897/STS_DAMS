@@ -1,0 +1,106 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 全局基准字号 — 不在 @layer 内，确保最高优先级
+   html 字号固定 22px（桌面）/ 18px（移动端），不受 zoom 影响
+   --app-zoom 由 useZoom() hook 注入，默认 1.5（即 150%）
+   主内容区 .zoom-content 可调缩放，侧边栏 .sidebar-scale 固定 150% 独立缩放 */
+html {
+  font-size: 22px;
+}
+
+@media (max-width: 768px) {
+  html {
+    font-size: 18px;
+  }
+}
+
+/* ── 主内容缩放层：跟随 --app-zoom（默认 1.5 = 150%）── */
+.zoom-content {
+  zoom: var(--app-zoom, 1.5);
+}
+
+/* ── 侧边栏固定缩放：始终 150%，不受 --app-zoom 影响 ── */
+.sidebar-scale {
+  zoom: 1.5;
+}
+
+@layer base {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply font-sans antialiased;
+    overscroll-behavior: none;
+  }
+
+  input, select, textarea {
+    @apply outline-none;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-accent-purple text-white font-medium rounded-xl px-6 py-3
+           active:opacity-80 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply bg-gray-100 text-gray-700 font-medium rounded-xl px-6 py-3
+           active:bg-gray-200 transition-colors;
+  }
+
+  .btn-danger {
+    @apply bg-red-500 text-white font-medium rounded-xl px-6 py-3
+           active:opacity-80 transition-opacity;
+  }
+
+  .btn-warning {
+    @apply bg-orange-400 text-white font-medium rounded-xl px-6 py-3
+           active:opacity-80 transition-opacity;
+  }
+
+  .card {
+    @apply bg-white rounded-2xl shadow-sm border border-gray-100 p-4;
+  }
+
+  .input-field {
+    @apply w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50
+           focus:border-accent-purple focus:bg-white focus:ring-2 focus:ring-accent-purple/10
+           transition-all text-base;
+  }
+
+  .badge {
+    @apply inline-block px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .badge-matching { @apply bg-blue-100 text-blue-700; }
+  .badge-locked { @apply bg-orange-100 text-orange-700; }
+  .badge-progress { @apply bg-green-100 text-green-700; }
+  .badge-completed { @apply bg-gray-100 text-gray-500; }
+  .badge-aborted { @apply bg-red-100 text-red-500; }
+
+  .status-label {
+    @apply text-xs font-medium px-2 py-0.5 rounded-full;
+  }
+}
+
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+}

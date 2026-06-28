@@ -1,0 +1,39 @@
+# 依赖
+node_modules/
+
+# 环境变量（包含敏感信息）
+.env
+.env.local
+.env.*.local
+
+# 构建产物
+dist/
+tsconfig.tsbuildinfo
+
+# 上传文件
+uploads/
+
+# 备份
+backups/
+
+# Claude Code 本地配置
+.claude/
+
+# 压缩包和文档（非代码）
+*.zip
+*.rar
+*.7z
+
+# IDE
+.vscode/
+.idea/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 课程报告
+课程报告*
+
+# 日志
+*.log
